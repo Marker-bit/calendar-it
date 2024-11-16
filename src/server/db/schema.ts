@@ -1,13 +1,15 @@
 // Example model schema from the Drizzle docs
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
-import { sql } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
 import {
   index,
   integer,
+  json,
+  pgEnum,
   pgTableCreator,
-  timestamp,
-  varchar,
+  text,
+  timestamp
 } from "drizzle-orm/pg-core";
 
 /**
@@ -18,19 +20,47 @@ import {
  */
 export const createTable = pgTableCreator((name) => `calendar-it_${name}`);
 
-export const posts = createTable(
-  "post",
+export const providerEnum = pgEnum('provider', ['github', 'discord']);
+
+export const users = createTable(
+  "user",
   {
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-    name: varchar("name", { length: 256 }),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).$onUpdate(
-      () => new Date()
-    ),
+    provider: providerEnum("provider").notNull(),
+    providerId: text("provider_id").notNull(),
+    username: text("username").notNull(),
+    email: text("email").notNull(),
+  }
+);
+
+export const sessions = createTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
-  (example) => ({
-    nameIndex: index("name_idx").on(example.name),
+  (session) => ({
+    userIndex: index("session_user_idx").on(session.userId),
   })
 );
+
+export const calendars = createTable(
+  "calendar",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    name: text("name").notNull(),
+    dates: json("dates").notNull().$type<Date[]>(),
+  },
+  (calendar) => ({
+    userIndex: index("calendar_user_idx").on(calendar.userId),
+  })
+);
+
+export type User = InferSelectModel<typeof users>;
+export type Session = InferSelectModel<typeof sessions>;
